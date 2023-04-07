@@ -1,14 +1,24 @@
-from django.shortcuts import render, redirect, get_object_or_404
-from .models import Profiles
-from .forms import ProfileForm, UpdateProfileForm, LoginForm, OTPForm
-from .utils import encrypt_field, decrypt_field
+import random
+import string
+from django.shortcuts import render, redirect
+from .models import UserProfile
+from django.contrib.auth.models import User
+from django.contrib.auth.forms import AuthenticationForm, UserChangeForm
+from .forms import CustomUserCreationForm, UserProfileForm, OTPForm
 from django_ratelimit.decorators import ratelimit
+from django.core.paginator import Paginator
+from django.http import HttpResponseForbidden, FileResponse
 from django.conf import settings
-from django.http import HttpResponseForbidden
-from django.contrib.auth import authenticate, get_user_model, login
+from django.contrib import messages
+from django.contrib.auth import login as auth_login, get_user_model
 from django.core.mail import send_mail
-import pyotp
 from django.contrib.auth.decorators import login_required
+from captcha.fields import ReCaptchaField
+from xhtml2pdf import pisa
+from io import BytesIO
+
+def welcome(request):
+    return render(request, 'profiles/welcome.html')
 
 def send_otp_email(user, otp):
     subject = 'Your One-Time Password for Login'
@@ -20,115 +30,155 @@ def send_otp_email(user, otp):
     
 def verify_otp(request):
     if request.method == 'POST':
-        form = OTPForm(request.POST)
-        if form.is_valid():
-            submitted_otp = form.cleaned_data['otp']
-            stored_otp = request.session.get('otp')
-            user_id = request.session.get('user_id')
+        otp = request.POST['otp']
+        stored_otp = request.session.get('otp')
+        user_id = request.session.get('user_id')
 
-            if submitted_otp == stored_otp:
-                User = get_user_model()
-                user = User.objects.get(id=user_id)
-                login(request, user)
+        if otp == stored_otp:
+            User = get_user_model()
+            user = User.objects.get(pk=user_id)
+            auth_login(request, user)
+            del request.session['otp']
+            del request.session['user_id']
+            return redirect('login_app:profile_detail')
 
-                del request.session['otp']
-                del request.session['user_id']
+        messages.error(request, 'Invalid OTP')
 
-                return redirect('profile_list')  # Redirect to your desired page after a successful login
-            else:
-                return HttpResponseForbidden("Invalid OTP.")
-    else:
-        form = OTPForm()
-    return render(request, 'verify_otp.html', {'form': form})
+    return render(request, 'verify_otp.html')
     
-def login_view(request):
+def login(request):
     if request.method == 'POST':
-        form = LoginForm(request.POST)
+        form = AuthenticationForm(request, data=request.POST)
+        captcha = ReCaptchaField()
+
+        # Check reCAPTCHA
+        if not captcha.clean(request):
+            messages.error(request, 'Invalid reCAPTCHA')
+            return render(request, 'login.html', {'form': form})
+
         if form.is_valid():
-            username = form.cleaned_data['username']
-            password = form.cleaned_data['password']
-            user = authenticate(request, username=username, password=password)
-            if user is not None:
-                # Generate OTP
-                otp = pyotp.random_base32()
-                request.session['otp'] = otp
-                request.session['user_id'] = user.id
+            user = form.get_user()
+            otp = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+            request.session['otp'] = otp
+            request.session['user_id'] = user.id
 
-                # Send OTP email
-                send_otp_email(user, otp)
+            send_mail(
+                'Two-Factor Authentication',
+                f'Your One Time Password (OTP) is {otp}',
+                settings.EMAIL_HOST_USER,
+                [user.email],
+                fail_silently=False,
+            )
 
-                return redirect('verify_otp')
-            else:
-                return HttpResponseForbidden("Invalid login credentials.")
+            return redirect('login_app:verify_otp')
+
+        messages.error(request, 'Invalid username or password')
     else:
-        form = LoginForm()
+        form = AuthenticationForm()
+
     return render(request, 'login.html', {'form': form})
+
+
+def register(request):
+    if request.method == 'POST':
+        form = CustomUserCreationForm(request.POST)
+        profile_form = UserProfileForm(request.POST)
+        if form.is_valid() and profile_form.is_valid():
+            user = form.save()
+            user_profile = profile_form.save(commit=False)
+            user_profile.user = user
+            user_profile.save()
+
+            # ... (send email with OTP and save OTP in the session)
+
+            return redirect('profiles:verify_otp')
+    else:
+        form = CustomUserCreationForm()
+        profile_form = UserProfileForm()
+    return render(request, 'register.html', {'form': form, 'profile_form': profile_form})
+
 
 @login_required
 #Use their IP addres as the key. If a user exceeds the limit, their request will be blocked and custom rate-limit view will be displayed.
 @ratelimit(key='ip', rate='3/m', method='GET', block=True)
-def create_profile(request):
-    if request.method == 'POST':
-        form = ProfileForm(request.POST)
-        if form.is_valid():
-            profile = form.save(commit=False)
-            profile.password = encrypt_field(profile.password)
-            profile.first_name = encrypt_field(profile.first_name)
-            profile.last_name = encrypt_field(profile.last_name)
-            profile.phone_number = encrypt_field(profile.phone_number)
-            profile.gmail = encrypt_field(profile.gmail)
-            profile.save()
-            return redirect('profile_list')
-    else:
-        form = ProfileForm()
-    return render(request, 'create_profile.html', {'form': form})
+def profile_detail(request):
+    user = request.user
+    user_profile = UserProfile.objects.get(user=user)
+    return render(request, 'profile_detail.html', {'user': user, 'user_profile': user_profile})
 
-from django.shortcuts import render, get_object_or_404
-from .models import Profiles
-from .utils import decrypt_field
-
-def profile_detail(request, pk):
-    profile = get_object_or_404(Profiles, pk=pk)
-
-    decrypted_profile = {
-        'username': profile.username,
-        'password': decrypt_field(profile.password, 'your_key'),
-        'first_name': decrypt_field(profile.first_name, 'your_key'),
-        'last_name': decrypt_field(profile.last_name, 'your_key'),
-        'phone_number': decrypt_field(profile.phone_number, 'your_key'),
-        'gmail': decrypt_field(profile.gmail, 'your_key'),
-    }
-
-    return render(request, 'profile_detail.html', {'profile': decrypted_profile})
-
-
-def update_profile(request, pk):
-    profile = get_object_or_404(Profiles, pk=pk)
-    if request.method == 'POST':
-        form = UpdateProfileForm(request.POST, instance=profile)
-        if form.is_valid():
-            updated_profile = form.save(commit=False)
-            updated_profile.password = encrypt_field(updated_profile.password)
-            updated_profile.first_name = encrypt_field(updated_profile.first_name)
-            updated_profile.last_name = encrypt_field(updated_profile.last_name)
-            updated_profile.phone_number = encrypt_field(updated_profile.phone_number)
-            updated_profile.gmail = encrypt_field(updated_profile.gmail)
-            updated_profile.save()
-            return redirect('profile_list')
-    else:
-        form = UpdateProfileForm(instance=profile)
-    return render(request, 'update_profile.html', {'form': form})
 
 @login_required
-def delete_profile(request, pk):
-    profile = get_object_or_404(Profiles, pk=pk)
+#Use their IP addres as the key. If a user exceeds the limit, their request will be blocked and custom rate-limit view will be displayed.
+@ratelimit(key='ip', rate='3/m', method='GET', block=True)
+def update_profile(request):
+    user = request.user
+    user_profile = UserProfile.objects.get(user=user)
 
-    # Ensure that only the owner of the profile or an admin can delete the profile
-    if request.user == profile.user or request.user.is_staff:
-        profile.delete()
-        return redirect('login_app:profile_list')  # Redirect to the profile list view after deletion
+    if request.method == 'POST':
+        form = UserChangeForm(request.POST, instance=user)
+        profile_form = UserProfileForm(request.POST, instance=user_profile)
+        if form.is_valid() and profile_form.is_valid():
+            form.save()
+            profile_form.save()
+            return redirect('login_app:profile_detail')
     else:
-        return HttpResponseForbidden("You don't have permission to delete this profile.")
+        form = UserChangeForm(instance=user)
+        profile_form = UserProfileForm(instance=user_profile)
+    return render(request, 'update_profile.html', {'form': form, 'profile_form': profile_form})
+
+@login_required
+#Use their IP addres as the key. If a user exceeds the limit, their request will be blocked and custom rate-limit view will be displayed.
+@ratelimit(key='ip', rate='3/m', method='GET', block=True)
+def profile_list(request):
+    users = User.objects.all()
+
+    user_profiles = []
+    for user in users:
+        user_profile = UserProfile.objects.get(user=user)
+        user_profiles.append({
+            'user': user,
+            'user_profile': user_profile,
+        })
+
+    paginator = Paginator(user_profiles, 5)  # Show 5 profiles per page
+    page = request.GET.get('page')
+    profiles_page = paginator.get_page(page)
+
+    return render(request, 'profile_list.html', {'profiles': profiles_page})
+
+@login_required
+#Use their IP addres as the key. If a user exceeds the limit, their request will be blocked and custom rate-limit view will be displayed.
+@ratelimit(key='ip', rate='3/m', method='GET', block=True)
+def delete_profile(request):
+    user = request.user
+    if request.method == 'POST':
+        user.delete()
+        messages.success(request, 'Your profile has been deleted.')
+        return redirect('login_app:login')
+
+    return render(request, 'delete_profile.html', {'user': user})
+
+@login_required
+def profile_detail_pdf(request):
+    user = request.user
+    user_profile = UserProfile.objects.get(user=user)
+
+    # Render the profile detail to a string
+    html_content = render_to_string('profile_detail_pdf.html', {
+        'user': user,
+        'user_profile': user_profile
+    })
+
+    # Convert the HTML content to a PDF file
+    pdf_buffer = BytesIO()
+    pisa.CreatePDF(BytesIO(html_content.encode()), pdf_buffer)
+
+    # Serve the generated PDF as a response
+    pdf_buffer.seek(0)
+    response = FileResponse(pdf_buffer, content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="{user.username}_profile_detail.pdf"'
+
+    return response
 
 def custom_ratelimit_view(request, exception):
     return HttpResponseForbidden("You have exceeded the allowed number of requests.")

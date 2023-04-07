@@ -1,12 +1,13 @@
 from django.db import models
+from django.contrib.auth.models import User
+from .encrypted_fields import EncryptedCharField
+from django.conf import settings
 
-class Profiles(models.Model):
-    username = models.CharField(max_length=100, unique=True)
-    password = models.CharField(max_length=100)
-    first_name = models.CharField(max_length=100)
-    last_name = models.CharField(max_length=100)
-    phone_number = models.CharField(max_length=15)
-    gmail = models.EmailField()
+class UserProfile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    first_name = EncryptedCharField(max_length=255, encryption_key=settings.ENCRYPTION_KEY)
+    last_name = EncryptedCharField(max_length=255, encryption_key=settings.ENCRYPTION_KEY)
+    phone_number = EncryptedCharField(max_length=255, encryption_key=settings.ENCRYPTION_KEY)
 
     def __str__(self):
-        return self.username
+        return self.user.username

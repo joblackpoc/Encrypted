@@ -5,6 +5,8 @@
   <form method="post">
     {% csrf_token %}
     {{ form.as_p }}
+    <div class="g-recaptcha" data-sitekey="{{ recaptcha_public_key }}"></div>
     <button type="submit">Login</button>
   </form>
+  <script src="https://www.google.com/recaptcha/api.js" async defer></script>
 {% endblock %}

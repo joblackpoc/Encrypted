@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+
+{% block content %}
+  <h2>Profile List</h2>
+  <table>
+    <tr>
+      <th>Username</th>
+      <th>First Name</th>
+      <th>Last Name</th>
+      <th>Email</th>
+      <th>Phone Number</th>
+      <th>Action</th>
+    </tr>
+    {% for profile in profiles %}
+      <tr>
+        <td>{{ profile.user.username }}</td>
+        <td>{{ profile.user.first_name }}</td>
+        <td>{{ profile.user.last_name }}</td>
+        <td>{{ profile.user.email }}</td>
+        <td>{{ profile.user_profile.phone_number }}</td>
+        <td>
+          <a href="{% url 'login_app:profile_detail' %}">View Details</a>
+        </td>
+      </tr>
+    {% endfor %}
+  </table>
+
+  <!-- Paginator code here -->
+
+{% endblock %}
+
+
+  <div class="pagination">
+    <span class="step-links">
+        {% if profiles.has_previous %}
+            <a href="?page=1">&laquo; first</a>
+            <a href="?page={{ profiles.previous_page_number }}">previous</a>
+        {% endif %}
+
+        <span class="current">
+            Page {{ profiles.number }} of {{ profiles.paginator.num_pages }}.
+        </span>
+
+        {% if profiles.has_next %}
+            <a href="?page={{ profiles.next_page_number }}">next</a>
+            <a href="?page={{ profiles.paginator.num_pages }}">last &raquo;</a>
+        {% endif %}
+    </span>
+  </div>
+{% endblock %}

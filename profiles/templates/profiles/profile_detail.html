@@ -3,19 +3,11 @@
 {% block content %}
   <h2>Profile Detail</h2>
   <ul>
-    <li>Username: {{ profile.username }}</li>
-    <li>Password: {{ profile.password }}</li>
-    <li>First Name: {{ profile.first_name }}</li>
-    <li>Last Name: {{ profile.last_name }}</li>
-    <li>Phone Number: {{ profile.phone_number }}</li>
-    <li>Email: {{ profile.gmail }}</li>
+    <li>Username: {{ user.username }}</li>
+    <li>First Name: {{ user.first_name }}</li>
+    <li>Last Name: {{ user.last_name }}</li>
+    <li>Email: {{ user.email }}</li>
+    <li>Phone Number: {{ user_profile.phone_number }}</li>
   </ul>
-
-  {% if request.user == profile.user or request.user.is_staff %}
-    <form method="post" action="{% url 'login_app:delete_profile' profile.pk %}">
-      {% csrf_token %}
-      <button type="submit">Delete Profile</button>
-    </form>
-  {% endif %}
-
+  <a href="{% url 'login_app:update_profile' %}">Edit Profile</a>
 {% endblock %}
