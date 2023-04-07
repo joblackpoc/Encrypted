@@ -1,0 +1,167 @@
+header {
+    background-color: #259637;
+    color: #fff;
+    padding: 20px;
+  }
+  
+  nav {
+    display: flex;
+    justify-content: space-between;
+  }
+  
+  nav ul {
+    list-style: none;
+    display: flex;
+    margin: 0;
+    padding: 0;
+  }
+
+  
+  nav li {
+    margin: 0 10px;
+  }
+  
+  nav li a {
+    color: #ffffff;
+    text-decoration: none;
+  }
+  
+  nav li:hover {
+    background-color: #555;
+  }
+  
+  .dropdown {
+    position: relative;
+  }
+  
+  .dropdown-content {
+
+    text-decoration-color: #555;
+    display: none;
+    position: absolute;
+    background-color: #fff;
+    min-width: 200px;
+    box-shadow: 0 8px 16px 0 rgba(0,0,0,0.2);
+    z-index: 1;
+  }
+  
+  .dropdown:hover .dropdown-content {
+    display: block;
+  }
+  
+  .mega-dropdown {
+    position: relative;
+  }
+  
+  .mega-dropdown-content {
+    display: none;
+    position: absolute;
+    background-color: #fff;
+    min-width: 600px;
+    box-shadow: 0 8px 16px 0 rgba(0,0,0,0.2);
+    z-index: 1;
+    top: 60px;
+    left: 0;
+  }
+  
+  .mega-dropdown:hover .mega-dropdown-content {
+    display: block;
+  }
+  
+  .row {
+    display: flex;
+    justify-content: space-between;
+    margin: 0;
+    padding: 0;
+  }
+  
+  .col {
+    flex: 1;
+    margin: 20px;
+  }
+  
+  .col h3 {
+    margin-top: 0;
+  }
+  
+  .table-wrapper {
+    overflow-x: auto;
+  }
+  
+  table {
+    border: #555;
+    border-style: solid;
+    border-color: #555;
+    border-width: 1px ;
+    width: 100%;
+
+  }
+  
+  th, td {
+    padding: 8px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+  }
+  
+  th {
+    background-color: #f2f2f2;
+    font-weight: normal;
+  }
+  
+  tbody tr:nth-child(even) {
+    background-color: #f2f2f2;
+  }
+  
+  td:last-child {
+    font-weight: bold;
+  }
+  
+  tfoot td {
+    text-align: right;
+  }
+  
+  tfoot tr:first-child td:first-child {
+    border-top: 2px solid #ddd;
+  }
+  
+  tfoot tr:last-child td:first-child {
+    border-bottom: 2px solid #ddd;
+  }
+  
+
+  .card {
+    background-color: #fff;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2);
+    margin: 20px auto;
+    max-width: 600px;
+    padding: 20px;
+    text-align: center;
+}
+
+.card h2 {
+    margin-top: 0;
+}
+
+.card a {
+    background-color: #ec4cc4;
+    border: none;
+    border-radius: 5px;
+    color: #fff;
+    display: inline-block;
+    margin-top: 20px;
+    padding: 10px 20px;
+    text-decoration: none;
+}
+
+.card a:hover {
+    background-color: #0de06c;
+}
+
+footer {
+    background-color: #259637;
+    color: #fff;
+    padding: 10px;
+    text-align: center;
+}

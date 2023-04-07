@@ -1,19 +1,43 @@
 {% extends 'base.html' %}
 
 {% block content %}
-    <div class="container">
-        <div class="col-sm-4">
-            Number One
-        </div>
-
-
-        <div class="col-sm-4">
-            Number Two
-        </div>
-
+    <div class="table-wrapper">
+        <table>
+        <thead>
+            <tr>
+            <th>Product</th>
+            <th>Price</th>
+            <th>Quantity</th>
+            <th>Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+            <td>Product 1</td>
+            <td>$10.00</td>
+            <td>2</td>
+            <td>$20.00</td>
+            </tr>
+            <tr>
+            <td>Product 2</td>
+            <td>$15.00</td>
+            <td>3</td>
+            <td>$45.00</td>
+            </tr>
+            <tr>
+            <td>Product 3</td>
+            <td>$20.00</td>
+            <td>1</td>
+            <td>$20.00</td>
+            </tr>
+        </tbody>
+        </table>
+    </div>
   
-        <div class="card col-sm-4">
-            Number Three
-        </div>
+
+    <div class="card">
+        <h2>Card Title</h2>
+        <p>Some text goes here...</p>
+        <a href="#">Read More</a>
     </div>
 {% endblock content %}

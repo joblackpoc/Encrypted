@@ -1,25 +1,77 @@
+{% load static %}
 <!doctype html>
 <html lang="en">
 <head>
   <!-- Required meta tags -->
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-
-  <!-- Bootstrap CSS (using a CDN) -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-KyZXEAg3QhqLMpG8r+Knujsl7/1M2ait1Wshwcbf8z3/4q4JnpB76U6YQfk3vF0" crossorigin="anonymous">
-
+  <link rel="stylesheet" href="{% static 'css/style.css' %}">
   <title>{% block title %}Welcome Title{% endblock %}</title>
+
+  <h1>MasterPOP.cmpo</h1>
+
 </head>
 <body>
+  <header>
+
+
+    <nav>
+      <ul>
+        <li><a href="#">Home</a></li>
+        <li><a href="#">About</a></li>
+        <li><a href="#">Contact</a></li>
+        <li class="dropdown">
+          <a href="#">Dropdown 1</a>
+          <div class="dropdown-content">
+            <a href="#">Link 1</a>
+            <a href="#">Link 2</a>
+            <a href="#">Link 3</a>
+          </div>
+        </li>
+        <li class="mega-dropdown">
+          <a href="#">Dropdown 2</a>
+          <div class="mega-dropdown-content">
+            <div class="row">
+              <div class="col">
+                <h3>Column 1</h3>
+                <ul>
+                  <li><a href="#">Link 1</a></li>
+                  <li><a href="#">Link 2</a></li>
+                  <li><a href="#">Link 3</a></li>
+                </ul>
+              </div>
+              <div class="col">
+                <h3>Column 2</h3>
+                <ul>
+                  <li><a href="#">Link 1</a></li>
+                  <li><a href="#">Link 2</a></li>
+                  <li><a href="#">Link 3</a></li>
+                </ul>
+              </div>
+              <div class="col">
+                <h3>Column 3</h3>
+                <ul>
+                  <li><a href="#">Link 1</a></li>
+                  <li><a href="#">Link 2</a></li>
+                  <li><a href="#">Link 3</a></li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </li>
+      </ul>
+    </nav>
+  </header>
+  
   <div class="container">
     {% block content %}
     {% endblock %}
   </div>
 
-  <!-- Optional JavaScript -->
-  <!-- jQuery first, then Popper.js, then Bootstrap JS (using CDNs) -->
-  <script src="https://code.jquery.com/jquery-3.6.0.min.js" integrity="sha384-KyZXEAg3QhqLMpG8r+Knujsl7/1M2ait1Wshwcbf8z3/4q4JnpB76U6YQfk3vF0" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js" integrity="sha384-oBqDVmMz4fnFO9gybB3vCj3DqR7zpd5yTKNlB7gSrzMRjxl6ud9d+fM4M6j7f6z" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.min.js" integrity="sha384-cn7l7gDp0eyniUwwAZgrzD06kc/tftFf19TOAs2zVinnD/C7E91j9yyk5//jjpt/" crossorigin="anonymous"></script>
+  <footer>
+    <p>&copy; 2023 MasterPOP.cmpo</p>
+  </footer>
+  
+  <script src=" {% static 'js/main.js' %} "  ></script>
 </body>
 </html>
