@@ -1,6 +1,6 @@
 header {
-    background-color: #259637;
-    color: #fff;
+    background-color: #d2dbd3;
+    color: #e63ae6;
     padding: 20px;
   }
   
@@ -22,12 +22,12 @@ header {
   }
   
   nav li a {
-    color: #ffffff;
+    color: #e63ae6;
     text-decoration: none;
   }
   
   nav li:hover {
-    background-color: #555;
+    background-color: #d2dbd3;
   }
   
   .dropdown {
@@ -36,10 +36,10 @@ header {
   
   .dropdown-content {
 
-    text-decoration-color: #555;
+    text-decoration-color: #e63ae6;
     display: none;
     position: absolute;
-    background-color: #fff;
+    background-color: #d2dbd3;
     min-width: 200px;
     box-shadow: 0 8px 16px 0 rgba(0,0,0,0.2);
     z-index: 1;
@@ -56,11 +56,11 @@ header {
   .mega-dropdown-content {
     display: none;
     position: absolute;
-    background-color: #fff;
+    background-color: #d2dbd3;
     min-width: 600px;
     box-shadow: 0 8px 16px 0 rgba(0,0,0,0.2);
     z-index: 1;
-    top: 60px;
+    top: 20px;
     left: 0;
   }
   
