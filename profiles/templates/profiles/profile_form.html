@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% load django_bootstrap5 %}
+{% block content %}
+<div class="container">
+  <h1 class="mb-4">Create Profile</h1>
+  <form method="post">
+    {% csrf_token %}
+    {% bootstrap_form form %}
+    <div class="mb-3">
+      {{ form.first_name.label_tag }}
+      {{ form.first_name }}
+      {% if form.first_name.errors %}
+      <div class="invalid-feedback">
+        {% for error in form.first_name.errors %}
+        <div>{{ error }}</div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    <div class="mb-3">
+      {{ form.last_name.label_tag }}
+      {{ form.last_name }}
+      {% if form.last_name.errors %}
+      <div class="invalid-feedback">
+        {% for error in form.last_name.errors %}
+        <div>{{ error }}</div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    <div class="mb-3">
+      {{ form.phone_number.label_tag }}
+      {{ form.phone_number }}
+      {% if form.phone_number.errors %}
+      <div class="invalid-feedback">
+        {% for error in form.phone_number.errors %}
+        <div>{{ error }}</div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    <div class="mb-3">
+      {{ form.gmail.label_tag }}
+      {{ form.gmail }}
+      {% if form.gmail.errors %}
+      <div class="invalid-feedback">
+        {% for error in form.gmail.errors %}
+        <div>{{ error }}</div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    <div class="mb-3">
+      <button type="submit" class="btn btn-primary">Create</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
