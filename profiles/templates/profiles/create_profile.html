@@ -4,6 +4,7 @@
   <h2>Create Profile</h2>
   <form method="post" enctype="multipart/form-data">
     {% csrf_token %}
+    {% bootstrap_form form %}
     {{ form.as_p }}
     <button type="submit">Create Profile</button>
   </form>

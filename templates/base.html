@@ -1,4 +1,5 @@
 {% load static %}
+{% load bootstrap5 %}
 <!doctype html>
 <html lang="en">
 <head>
@@ -7,11 +8,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
   <link rel="stylesheet" href="{% static 'css/style.css' %}">
   <title>{% block title %}Welcome Title{% endblock %}</title>
-
+  {% bootstrap_css %}
   <h1>MasterPOP.cmpo</h1>
 
 </head>
 <body>
+  {% bootstrap_messages %}
   <header>
 
 
@@ -66,14 +68,17 @@
   </header>
   
   <div class="container">
-    {% block content %}
-    {% endblock %}
+    <div class="background-image">
+      <img src="" />
+      {% block content %}
+      {% endblock %}
+    </div>
   </div>
 
   <footer>
     <p>&copy; 2023 MasterPOP.cmpo</p>
   </footer>
-  
+  {% bootstrap_javascript %}
   <script src=" {% static 'js/main.js' %} "  ></script>
 </body>
 </html>

@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'profiles',
     'captcha',
+    'bootstrap5',
 ]
 
 MIDDLEWARE = [

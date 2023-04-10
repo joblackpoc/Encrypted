@@ -3,6 +3,7 @@
   <h2>Verify OTP</h2>
   <form method="post">
     {% csrf_token %}
+    {% bootstrap_form form %}
     <label for="otp">Enter the OTP sent to your email:</label>
     <input type="text" name="otp" required>
     <button type="submit">Verify</button>
