@@ -4,7 +4,7 @@ from django.shortcuts import render, redirect
 from .models import UserProfile
 from django.contrib.auth.models import User
 from django.contrib.auth.forms import AuthenticationForm, UserChangeForm
-from .forms import CustomUserCreationForm, UserProfileForm, OTPForm
+from .forms import UserForm, UserProfileForm, OTPForm
 from django_ratelimit.decorators import ratelimit
 from django.core.paginator import Paginator
 from django.http import HttpResponseForbidden, FileResponse
@@ -30,22 +30,23 @@ def send_otp_email(user, otp):
     
 def verify_otp(request):
     if request.method == 'POST':
-        otp = request.POST['otp']
-        stored_otp = request.session.get('otp')
-        user_id = request.session.get('user_id')
+        form = OTPForm(request.POST)
+        if form.is_valid():
+            otp = form.cleaned_data.get('otp')
+            stored_otp = request.session.get('otp')
+            if otp == stored_otp:
+                user_id = request.session.get('user_id')
+                user = User.objects.get(id=user_id)
+                login(request, user)
+                messages.success(request, 'You have successfully logged in.')
+                return redirect('home')
+            else:
+                messages.error(request, 'Invalid OTP. Please try again.')
+    else:
+        form = OTPForm()
 
-        if otp == stored_otp:
-            User = get_user_model()
-            user = User.objects.get(pk=user_id)
-            auth_login(request, user)
-            del request.session['otp']
-            del request.session['user_id']
-            return redirect('login_app:profile_detail')
+    return render(request, 'verify_otp.html', {'form': form})
 
-        messages.error(request, 'Invalid OTP')
-
-    return render(request, 'verify_otp.html')
-    
 def login(request):
     if request.method == 'POST':
         form = AuthenticationForm(request, data=request.POST)
@@ -81,19 +82,19 @@ def login(request):
 
 def register(request):
     if request.method == 'POST':
-        form = CustomUserCreationForm(request.POST)
+        form = UserForm(request.POST)
         profile_form = UserProfileForm(request.POST)
         if form.is_valid() and profile_form.is_valid():
             user = form.save()
             user_profile = profile_form.save(commit=False)
-            user_profile.user = user
+            #user_profile.user = user
             user_profile.save()
 
             # ... (send email with OTP and save OTP in the session)
 
             return redirect('profiles:verify_otp')
     else:
-        form = CustomUserCreationForm()
+        form = UserForm()
         profile_form = UserProfileForm()
     return render(request, 'register.html', {'form': form, 'profile_form': profile_form})
 
