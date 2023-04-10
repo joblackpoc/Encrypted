@@ -4,9 +4,8 @@
   <h2>Update Profile</h2>
   <form method="post">
     {% csrf_token %}
-    {{ form.as_p }}
     {% bootstrap_form form %}
-    {{ profile_form.as_p }}
+    {{ form.as_p }}
     <button type="submit">Update</button>
   </form>
 {% endblock %}

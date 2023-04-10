@@ -6,6 +6,9 @@
     {% csrf_token %}
     {% bootstrap_form %}
     {{ form.as_p }}
+    {% if request.recaptcha_site_key %}
+        <div class="g-recaptcha" data-sitekey="{{ request.recaptcha_site_key }}"></div>
+    {% endif %}
     <div class="g-recaptcha" data-sitekey="{{ recaptcha_public_key }}"></div>
     <button type="submit">Login</button>
   </form>

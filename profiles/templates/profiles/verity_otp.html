@@ -6,7 +6,7 @@
     {% csrf_token %}
     {% bootstrap_form form %}
     <label for="otp">Enter the OTP sent to your email:</label>
-    <input type="text" name="otp" required>
+    {{ form.as_p }}
     <button type="submit">Verify</button>
   </form>
 {% endblock %}

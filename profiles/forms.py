@@ -1,24 +1,26 @@
 from django import forms
-from .models import UserProfile
 from django.contrib.auth.models import User
-from django.contrib.auth.forms import UserCreationForm
-from captcha.fields import ReCaptchaField
+from .models import UserProfile
 
-class UserForm(UserCreationForm):
+class RegistrationForm(forms.ModelForm):
+    password = forms.CharField(widget=forms.PasswordInput)
+
     class Meta:
         model = User
-        fields = ['username', 'first_name', 'last_name', 'email']
+        fields = ['first_name', 'last_name', 'email', 'password']
 
 class UserProfileForm(forms.ModelForm):
     class Meta:
         model = UserProfile
-        fields = ('phone_number',)
+        fields = ['CID', 'Phone_number']
 
-
-class LoginForm(forms.Form):
-    username = forms.CharField()
-    password = forms.CharField(widget=forms.PasswordInput)
-    captcha = ReCaptchaField()
+class UserProfileUpdateForm(forms.ModelForm):
+    class Meta:
+        model = UserProfile
+        fields = ['CID', 'Phone_number']
+        
+class UserProfileDeleteForm(forms.Form):
+    confirm = forms.BooleanField(required=True)
     
-class OTPForm(forms.Form):
-    otp = forms.CharField(label='One-Time Password')
+class VerifyOTPForm(forms.Form):
+    otp = forms.CharField(label='OTP', max_length=6, widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter OTP'}))

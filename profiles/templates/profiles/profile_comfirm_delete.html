@@ -6,7 +6,8 @@
   <form method="post">
     {% csrf_token %}
     {% bootstrap_form form %}
+    {{  form.as_p}}
     <button type="submit">Yes, delete my profile</button>
-    <a href="{% url 'login_app:profile_detail' %}">No, go back to my profile</a>
+    <a href="{% url 'profiles:profile_detail' %}">No, go back to my profile</a>
   </form>
 {% endblock %}

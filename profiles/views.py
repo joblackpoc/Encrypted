@@ -1,21 +1,32 @@
-import random
-import string
+from django.contrib.auth import logout
 from django.shortcuts import render, redirect
-from .models import UserProfile
-from django.contrib.auth.models import User
-from django.contrib.auth.forms import AuthenticationForm, UserChangeForm
-from .forms import UserForm, UserProfileForm, OTPForm
-from django_ratelimit.decorators import ratelimit
-from django.core.paginator import Paginator
-from django.http import HttpResponseForbidden, FileResponse
-from django.conf import settings
 from django.contrib import messages
-from django.contrib.auth import login as auth_login, get_user_model
-from django.core.mail import send_mail
 from django.contrib.auth.decorators import login_required
-from captcha.fields import ReCaptchaField
-from xhtml2pdf import pisa
-from io import BytesIO
+from django.shortcuts import render, redirect
+from django.contrib import messages
+from django.contrib.auth import authenticate, login
+from django.contrib.auth.decorators import login_required
+from django_ratelimit.decorators import ratelimit
+from django_ratelimit.exceptions import Ratelimited
+from django.conf import settings
+from django.core.mail import send_mail
+from django.template.loader import render_to_string
+from django.utils.html import strip_tags
+from django.utils.timezone import now
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import never_cache
+from django.views.generic.edit import FormView
+from django.views.generic.base import TemplateView
+from .forms import LoginForm, VerifyOTPForm
+from .models import UserProfile
+from .utils import generate_otp
+from .forms import RegistrationForm, UserProfileForm, UserProfileUpdateForm, UserProfileDeleteForm
+from .models import UserProfile
+from hashlib import sha256
+
+RATELIMIT_ENABLE = getattr(settings, 'RATELIMIT_ENABLE', True)
+LOGIN_RATELIMIT_FAILURE = getattr(settings, 'LOGIN_RATELIMIT_FAILURE', 10)
+LOGIN_RATELIMIT_PERIOD = getattr(settings, 'LOGIN_RATELIMIT_PERIOD', 60)
 
 def welcome(request):
     return render(request, 'profiles/welcome.html')
@@ -28,23 +39,37 @@ def send_otp_email(user, otp):
 
     send_mail(subject, message, from_email, to_email)
     
+@ratelimit(key='ip', rate='10/m', block=True, method=['POST'], 
+    use_request_method=True, group=None, condition=None)
 def verify_otp(request):
+    if request.user.is_authenticated:
+        return redirect('profile_detail')
+    otp = request.session.get('otp')
+    otp_time = request.session.get('otp_time')
+    if not otp or not otp_time:
+        messages.error(request, 'OTP session expired. Please log in again.')
+        return redirect('login')
+    if (now().timestamp() - otp_time) > settings.SESSION_COOKIE_AGE:
+        messages.error(request, 'OTP session expired. Please log in again.')
+        return redirect('login')
     if request.method == 'POST':
-        form = OTPForm(request.POST)
+        form = VerifyOTPForm(request.POST)
         if form.is_valid():
-            otp = form.cleaned_data.get('otp')
-            stored_otp = request.session.get('otp')
-            if otp == stored_otp:
-                user_id = request.session.get('user_id')
-                user = User.objects.get(id=user_id)
-                login(request, user)
-                messages.success(request, 'You have successfully logged in.')
-                return redirect('home')
+            if form.cleaned_data['otp'] == otp:
+                # If the OTP is valid, log in the user
+                del request.session['otp']
+                del request.session['otp_time']
+                user = authenticate(request, username=form.cleaned_data['username'], password=form.cleaned_data['password'])
+                if user is not None:
+                    login(request, user)
+                    return redirect('profile_detail')
+                else:
+                    messages.error(request, 'Invalid username or password.')
             else:
-                messages.error(request, 'Invalid OTP. Please try again.')
+                # If the OTP is invalid, display an error message
+                messages.error(request, 'Invalid OTP.')
     else:
-        form = OTPForm()
-
+        form = VerifyOTPForm()
     return render(request, 'verify_otp.html', {'form': form})
 
 def login(request):
@@ -79,24 +104,28 @@ def login(request):
 
     return render(request, 'login.html', {'form': form})
 
-
 def register(request):
     if request.method == 'POST':
-        form = UserForm(request.POST)
+        user_form = RegistrationForm(request.POST)
         profile_form = UserProfileForm(request.POST)
-        if form.is_valid() and profile_form.is_valid():
-            user = form.save()
-            user_profile = profile_form.save(commit=False)
-            #user_profile.user = user
-            user_profile.save()
-
-            # ... (send email with OTP and save OTP in the session)
-
-            return redirect('profiles:verify_otp')
+        if user_form.is_valid() and profile_form.is_valid():
+            # Create new user and user profile objects
+            user = user_form.save(commit=False)
+            user.set_password(user_form.cleaned_data['password'])
+            user.save()
+            profile = profile_form.save(commit=False)
+            profile.user = user
+            # Encrypt necessary fields
+            profile.CID = sha256(str(profile.CID).encode()).hexdigest()
+            profile.Phone_number = sha256(profile.Phone_number.encode()).hexdigest()
+            profile.save()
+            # Log user in and redirect to profile detail view
+            login(request, user)
+            return redirect('profile_detail')
     else:
-        form = UserForm()
+        user_form = RegistrationForm()
         profile_form = UserProfileForm()
-    return render(request, 'register.html', {'form': form, 'profile_form': profile_form})
+    return render(request, 'registration/register.html', {'user_form': user_form, 'profile_form': profile_form})
 
 
 @login_required
@@ -104,8 +133,12 @@ def register(request):
 @ratelimit(key='ip', rate='3/m', method='GET', block=True)
 def profile_detail(request):
     user = request.user
-    user_profile = UserProfile.objects.get(user=user)
-    return render(request, 'profile_detail.html', {'user': user, 'user_profile': user_profile})
+    profile = UserProfile.objects.get(user=user)
+    # Decrypt necessary fields
+    CID = profile.CID
+    Phone_number = profile.Phone_number
+    context = {'user': user, 'CID': CID, 'Phone_number': Phone_number}
+    return render(request, 'profile_detail.html', context)
 
 
 @login_required
@@ -113,19 +146,22 @@ def profile_detail(request):
 @ratelimit(key='ip', rate='3/m', method='GET', block=True)
 def update_profile(request):
     user = request.user
-    user_profile = UserProfile.objects.get(user=user)
-
+    profile = UserProfile.objects.get(user=user)
     if request.method == 'POST':
-        form = UserChangeForm(request.POST, instance=user)
-        profile_form = UserProfileForm(request.POST, instance=user_profile)
-        if form.is_valid() and profile_form.is_valid():
-            form.save()
-            profile_form.save()
-            return redirect('login_app:profile_detail')
+        form = UserProfileUpdateForm(request.POST, instance=profile)
+        if form.is_valid():
+            # Update the user profile object
+            profile = form.save(commit=False)
+            # Encrypt necessary fields
+            profile.CID = sha256(str(profile.CID).encode()).hexdigest()
+            profile.Phone_number = sha256(profile.Phone_number.encode()).hexdigest()
+            profile.save()
+            messages.success(request, 'Profile updated successfully.')
+            # Redirect to profile detail view
+            return redirect('profile_detail')
     else:
-        form = UserChangeForm(instance=user)
-        profile_form = UserProfileForm(instance=user_profile)
-    return render(request, 'update_profile.html', {'form': form, 'profile_form': profile_form})
+        form = UserProfileUpdateForm(instance=profile)
+    return render(request, 'profile_update.html', {'form': form})
 
 @login_required
 #Use their IP addres as the key. If a user exceeds the limit, their request will be blocked and custom rate-limit view will be displayed.
@@ -150,14 +186,23 @@ def profile_list(request):
 @login_required
 #Use their IP addres as the key. If a user exceeds the limit, their request will be blocked and custom rate-limit view will be displayed.
 @ratelimit(key='ip', rate='3/m', method='GET', block=True)
-def delete_profile(request):
-    user = request.user
-    if request.method == 'POST':
-        user.delete()
-        messages.success(request, 'Your profile has been deleted.')
-        return redirect('login_app:login')
 
-    return render(request, 'delete_profile.html', {'user': user})
+def profile_delete(request):
+    user = request.user
+    profile = UserProfile.objects.get(user=user)
+    if request.method == 'POST':
+        form = UserProfileDeleteForm(request.POST)
+        if form.is_valid() and form.cleaned_data['confirm']:
+            # Delete the user profile object
+            profile.delete()
+            # Log out the user
+            logout(request)
+            messages.success(request, 'Profile deleted successfully.')
+            # Redirect to home page
+            return redirect('home')
+    else:
+        form = UserProfileDeleteForm()
+    return render(request, 'profile_confirm_delete.html', {'form': form})
 
 @login_required
 def profile_detail_pdf(request):
