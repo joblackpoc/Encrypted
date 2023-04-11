@@ -6,10 +6,13 @@
     {% csrf_token %}
     {% bootstrap_form %}
     {{ form.as_p }}
-    {% if request.recaptcha_site_key %}
-        <div class="g-recaptcha" data-sitekey="{{ request.recaptcha_site_key }}"></div>
+    {% if messages %}
+      {% for message in messages %}
+        <div class="alert alert-danger" role="alert">{{ message }}</div>
+      {% endfor %}
     {% endif %}
-    <div class="g-recaptcha" data-sitekey="{{ recaptcha_public_key }}"></div>
+    <div class="g-recaptcha" data-sitekey="{{ RECAPTCHA_SITE_KEY }}"></div>
+    <br>
     <button type="submit">Login</button>
   </form>
   <script src="https://www.google.com/recaptcha/api.js" async defer></script>

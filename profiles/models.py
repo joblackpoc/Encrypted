@@ -2,9 +2,9 @@ from django.db import models
 from django.contrib.auth.models import User
 from hashlib import sha256
 
-class UserProfile(models.Model):
+class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
-    CID = models.IntegerField(max_length=13)
+    CID = models.CharField(max_length=13)
     Phone_number = models.CharField(max_length=10)
 
     def save(self, *args, **kwargs):
@@ -20,13 +20,15 @@ class UserProfile(models.Model):
 
 
 class Salary(models.Model):
-    CID = models.ForeignKey(UserProfile, on_delete=models.CASCADE)
-    first_name = models.ForeignKey(UserProfile, on_delete=models.CASCADE)
-    last_name = models.ForeignKey(UserProfile, on_delete=models.CASCADE)
-    bank_account = models.IntegerField()
+    
+    CID = models.ForeignKey(Profile, null=True, on_delete=models.CASCADE)
+    fname = models.CharField(max_length=50)
+    lname = models.CharField(max_length=50)
+    bank_account = models.CharField(max_length=25)
     salary = models.CharField(max_length=10)
     total = models.CharField(max_length=10)
-    date_input = models.DateField()
+    date_input = models.CharField(max_length=15)
 
     def __str__(self):
-        return f"{self.CID} {self.first_name} {self.last_name} ({self.date_input})"
+        return f"{self.CID} {self.fname} {self.lname} ({self.date_input})"
+

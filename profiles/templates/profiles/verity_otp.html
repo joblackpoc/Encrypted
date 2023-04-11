@@ -2,6 +2,7 @@
 {% load django_bootstrap5 %}
 {% block content %}
   <h2>Verify OTP</h2>
+  <hr>
   <form method="post">
     {% csrf_token %}
     {% bootstrap_form form %}

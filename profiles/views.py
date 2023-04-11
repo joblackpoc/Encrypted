@@ -1,9 +1,12 @@
+import base64
+import hashlib
+import pyotp
+from hashlib import sha256
 from django.contrib.auth import logout
-from django.shortcuts import render, redirect
+from django.contrib.auth.models import User
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import render, redirect
-from django.contrib import messages
 from django.contrib.auth import authenticate, login
 from django.contrib.auth.decorators import login_required
 from django_ratelimit.decorators import ratelimit
@@ -13,16 +16,12 @@ from django.core.mail import send_mail
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 from django.utils.timezone import now
-from django.utils.decorators import method_decorator
-from django.views.decorators.cache import never_cache
-from django.views.generic.edit import FormView
-from django.views.generic.base import TemplateView
-from .forms import LoginForm, VerifyOTPForm
-from .models import UserProfile
+from .forms import  OTPForm, LoginForm
 from .utils import generate_otp
-from .forms import RegistrationForm, UserProfileForm, UserProfileUpdateForm, UserProfileDeleteForm
-from .models import UserProfile
-from hashlib import sha256
+from .forms import UserRegisterForm, UserProfileForm, ProfileUpdateForm, UserProfileDeleteForm, ProfileDeleteForm
+from .models import Profile
+from django.core.paginator import Paginator
+from django.views.generic import ListView
 
 RATELIMIT_ENABLE = getattr(settings, 'RATELIMIT_ENABLE', True)
 LOGIN_RATELIMIT_FAILURE = getattr(settings, 'LOGIN_RATELIMIT_FAILURE', 10)
@@ -39,79 +38,90 @@ def send_otp_email(user, otp):
 
     send_mail(subject, message, from_email, to_email)
     
-@ratelimit(key='ip', rate='10/m', block=True, method=['POST'], 
-    use_request_method=True, group=None, condition=None)
+    
+@login_required
 def verify_otp(request):
-    if request.user.is_authenticated:
-        return redirect('profile_detail')
-    otp = request.session.get('otp')
-    otp_time = request.session.get('otp_time')
-    if not otp or not otp_time:
-        messages.error(request, 'OTP session expired. Please log in again.')
-        return redirect('login')
-    if (now().timestamp() - otp_time) > settings.SESSION_COOKIE_AGE:
-        messages.error(request, 'OTP session expired. Please log in again.')
-        return redirect('login')
+    user = request.user
+    if not user.profile.is_2fa_enabled:
+        return redirect('home')
+    totp = pyotp.TOTP(user.profile.otp_secret)
+    otp = totp.now()
+    request.session['otp'] = otp
     if request.method == 'POST':
-        form = VerifyOTPForm(request.POST)
+        form = OTPForm(request.POST)
         if form.is_valid():
             if form.cleaned_data['otp'] == otp:
-                # If the OTP is valid, log in the user
-                del request.session['otp']
-                del request.session['otp_time']
-                user = authenticate(request, username=form.cleaned_data['username'], password=form.cleaned_data['password'])
-                if user is not None:
-                    login(request, user)
-                    return redirect('profile_detail')
-                else:
-                    messages.error(request, 'Invalid username or password.')
+                request.session['is_verified'] = True
+                return redirect('home')
             else:
-                # If the OTP is invalid, display an error message
-                messages.error(request, 'Invalid OTP.')
+                form.add_error('otp', 'Invalid OTP. Please try again.')
     else:
-        form = VerifyOTPForm()
+        form = OTPForm()
     return render(request, 'verify_otp.html', {'form': form})
 
-def login(request):
+
+@ratelimit(key='ip', rate='10/m', block=True, method=['POST'])
+def login_view(request):
+    if request.user.is_authenticated:
+        return redirect('profile_detail')
     if request.method == 'POST':
-        form = AuthenticationForm(request, data=request.POST)
-        captcha = ReCaptchaField()
-
-        # Check reCAPTCHA
-        if not captcha.clean(request):
-            messages.error(request, 'Invalid reCAPTCHA')
-            return render(request, 'login.html', {'form': form})
-
+        form = LoginForm(request.POST)
         if form.is_valid():
-            user = form.get_user()
-            otp = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
-            request.session['otp'] = otp
-            request.session['user_id'] = user.id
-
-            send_mail(
-                'Two-Factor Authentication',
-                f'Your One Time Password (OTP) is {otp}',
-                settings.EMAIL_HOST_USER,
-                [user.email],
-                fail_silently=False,
-            )
-
-            return redirect('login_app:verify_otp')
-
-        messages.error(request, 'Invalid username or password')
+            # Verify reCAPTCHA
+            captcha = form.cleaned_data.get('captcha')
+            recaptcha_secret_key = settings.RECAPTCHA_PRIVATE_KEY
+            recaptcha_response = request.POST.get('g-recaptcha-response')
+            data = {
+                'secret': recaptcha_secret_key,
+                'response': recaptcha_response
+            }
+            response = request.post('https://www.google.com/recaptcha/api/siteverify', data=data)
+            result = response.json()
+            if not result['success']:
+                messages.error(request, 'Invalid reCAPTCHA. Please try again.')
+                return redirect('login')
+                
+            username = form.cleaned_data['username']
+            password = form.cleaned_data['password']
+            user = authenticate(request, username=username, password=password)
+            if user is not None:
+                # Check if the user has two-factor authentication enabled
+                profile = Profile.objects.get(user=user)
+                if profile.two_factor_enabled:
+                    # If two-factor authentication is enabled, generate and send an OTP
+                    otp = generate_otp()
+                    request.session['otp'] = otp
+                    request.session['otp_time'] = now().timestamp()
+                    subject = 'Login OTP'
+                    html_message = render_to_string('email_otp.html', {'otp': otp})
+                    plain_message = strip_tags(html_message)
+                    from_email = settings.EMAIL_HOST_USER
+                    to_email = profile.user.email
+                    send_mail(subject, plain_message, from_email, [to_email], html_message=html_message)
+                    # Render the OTP verification form to the user
+                    return redirect('verify_otp')
+                else:
+                    # If two-factor authentication is not enabled, log in the user
+                    login(request, user)
+                    return redirect('profile_detail')
+            else:
+                # If authentication fails, display an error message
+                if RATELIMIT_ENABLE:
+                    raise Ratelimited(login_view)
+                else:
+                    messages.error(request, 'Invalid username or password.')
     else:
-        form = AuthenticationForm()
-
+        form = LoginForm()
     return render(request, 'login.html', {'form': form})
 
 def register(request):
     if request.method == 'POST':
-        user_form = RegistrationForm(request.POST)
+        user_form = UserRegisterForm(request.POST)
         profile_form = UserProfileForm(request.POST)
         if user_form.is_valid() and profile_form.is_valid():
             # Create new user and user profile objects
             user = user_form.save(commit=False)
-            user.set_password(user_form.cleaned_data['password'])
+            user.set_password(user_form.cleaned_data['password1','password2'])
             user.save()
             profile = profile_form.save(commit=False)
             profile.user = user
@@ -123,9 +133,9 @@ def register(request):
             login(request, user)
             return redirect('profile_detail')
     else:
-        user_form = RegistrationForm()
+        user_form = UserRegisterForm()
         profile_form = UserProfileForm()
-    return render(request, 'registration/register.html', {'user_form': user_form, 'profile_form': profile_form})
+    return render(request, 'profiles/register.html', {'user_form': user_form, 'profile_form': profile_form})
 
 
 @login_required
@@ -133,7 +143,7 @@ def register(request):
 @ratelimit(key='ip', rate='3/m', method='GET', block=True)
 def profile_detail(request):
     user = request.user
-    profile = UserProfile.objects.get(user=user)
+    profile = Profile.objects.get(user=user)
     # Decrypt necessary fields
     CID = profile.CID
     Phone_number = profile.Phone_number
@@ -144,11 +154,11 @@ def profile_detail(request):
 @login_required
 #Use their IP addres as the key. If a user exceeds the limit, their request will be blocked and custom rate-limit view will be displayed.
 @ratelimit(key='ip', rate='3/m', method='GET', block=True)
-def update_profile(request):
+def profile_update(request):
     user = request.user
-    profile = UserProfile.objects.get(user=user)
+    profile = Profile.objects.get(user=user)
     if request.method == 'POST':
-        form = UserProfileUpdateForm(request.POST, instance=profile)
+        form = ProfileUpdateForm(request.POST, instance=profile)
         if form.is_valid():
             # Update the user profile object
             profile = form.save(commit=False)
@@ -160,36 +170,15 @@ def update_profile(request):
             # Redirect to profile detail view
             return redirect('profile_detail')
     else:
-        form = UserProfileUpdateForm(instance=profile)
+        form = ProfileUpdateForm(instance=profile)
     return render(request, 'profile_update.html', {'form': form})
 
 @login_required
 #Use their IP addres as the key. If a user exceeds the limit, their request will be blocked and custom rate-limit view will be displayed.
 @ratelimit(key='ip', rate='3/m', method='GET', block=True)
-def profile_list(request):
-    users = User.objects.all()
-
-    user_profiles = []
-    for user in users:
-        user_profile = UserProfile.objects.get(user=user)
-        user_profiles.append({
-            'user': user,
-            'user_profile': user_profile,
-        })
-
-    paginator = Paginator(user_profiles, 5)  # Show 5 profiles per page
-    page = request.GET.get('page')
-    profiles_page = paginator.get_page(page)
-
-    return render(request, 'profile_list.html', {'profiles': profiles_page})
-
-@login_required
-#Use their IP addres as the key. If a user exceeds the limit, their request will be blocked and custom rate-limit view will be displayed.
-@ratelimit(key='ip', rate='3/m', method='GET', block=True)
-
 def profile_delete(request):
     user = request.user
-    profile = UserProfile.objects.get(user=user)
+    profile = Profile.objects.get(user=user)
     if request.method == 'POST':
         form = UserProfileDeleteForm(request.POST)
         if form.is_valid() and form.cleaned_data['confirm']:
@@ -205,26 +194,50 @@ def profile_delete(request):
     return render(request, 'profile_confirm_delete.html', {'form': form})
 
 @login_required
-def profile_detail_pdf(request):
-    user = request.user
-    user_profile = UserProfile.objects.get(user=user)
+def profile_confirm_delete(request, pk):
+    profile = get_object_or_404(Profile, pk=pk)
+    
+    if request.method == 'POST':
+        form = ProfileDeleteForm(request.POST)
+        if form.is_valid():
+            if form.cleaned_data['confirm']:
+                profile.delete()
+                messages.success(request, 'Profile has been deleted successfully.')
+                return redirect('profile_list')
+            else:
+                messages.error(request, 'Please confirm the deletion by checking the box.')
+    else:
+        form = ProfileDeleteForm()
+    
+    context = {'profile': profile, 'form': form}
+    return render(request, 'profile_confirm_delete.html', context)
 
-    # Render the profile detail to a string
-    html_content = render_to_string('profile_detail_pdf.html', {
-        'user': user,
-        'user_profile': user_profile
-    })
+class UserProfileListView(ListView):
+    model = Profile
+    template_name = 'profile_list.html'
+    context_object_name = 'profiles'
+    paginate_by = 10  # Change this to set the number of profiles per page
 
-    # Convert the HTML content to a PDF file
-    pdf_buffer = BytesIO()
-    pisa.CreatePDF(BytesIO(html_content.encode()), pdf_buffer)
+def profile_list(request):
+    profiles = Profile.objects.all()
+    paginator = Paginator(profiles, 10)  # Change this to set the number of profiles per page
+    page = request.GET.get('page')
+    profiles = paginator.get_page(page)
+    return render(request, 'profile_list.html', {'profiles': profiles})
 
-    # Serve the generated PDF as a response
-    pdf_buffer.seek(0)
-    response = FileResponse(pdf_buffer, content_type='application/pdf')
-    response['Content-Disposition'] = f'attachment; filename="{user.username}_profile_detail.pdf"'
-
-    return response
-
-def custom_ratelimit_view(request, exception):
-    return HttpResponseForbidden("You have exceeded the allowed number of requests.")
+def encrypt_salary_fields(salary):
+    fields_to_encrypt = ['CID', 'first_name', 'last_name', 'bank_account', 'salary', 'total']
+    for field_name in fields_to_encrypt:
+        # Skip the date_input field
+        if field_name == 'date_input':
+            continue
+        # Get the value of the field
+        field_value = getattr(salary, field_name)
+        # Encode the value with utf-8 and hash it with SHA256
+        hashed_value = hashlib.sha256(field_value.encode('utf-8')).digest()
+        # Encode the hashed value with base64
+        encoded_value = base64.b64encode(hashed_value).decode('utf-8')
+        # Set the encrypted value back to the model instance
+        setattr(salary, field_name, encoded_value)
+    # Save the encrypted model instance
+    salary.save()

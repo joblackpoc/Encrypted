@@ -2,7 +2,22 @@
 {% load django_bootstrap5 %}
 {% block content %}
   <h2>Delete Profile</h2>
-  <p>Are you sure you want to delete your profile?</p>
+  <h1>Confirm profile deletion</h1>
+  <p>Are you sure you want to delete this profile?</p>
+  <dl>
+    <dt>First name:</dt>
+    <dd>{{ profile.first_name }}</dd>
+    <dt>Last name:</dt>
+    <dd>{{ profile.last_name }}</dd>
+    <dt>CID:</dt>
+    <dd>{{ profile.CID }}</dd>
+    <dt>Phone number:</dt>
+    <dd>{{ profile.Phone_number }}</dd>
+    <dt>Bank account:</dt>
+    <dd>{{ profile.bank_account }}</dd>
+    <dt>2FA enabled:</dt>
+    <dd>{% if profile.is_2fa_enabled %}Yes{% else %}No{% endif %}</dd>
+  </dl>
   <form method="post">
     {% csrf_token %}
     {% bootstrap_form form %}
